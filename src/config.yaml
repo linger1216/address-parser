@@ -1,0 +1,19 @@
+input:
+  vocabulary_path: ./input/pretrain_vocabulary.txt
+  embedding_path: ./input/init_wordembedding.npy
+  label_path: ./input/label.txt
+  train_path: ./input/train.json
+  test_path: ./input/test.json
+
+params:
+  num_epochs: 10
+  split: character
+  learning_rate: 0.001
+  sequence_length: 50
+  embedding_dim: 300
+  gru_unit_num: 200
+  dropout_rate: 0.4
+  padding_value: -1
+  batch_size: 32
+  epoch: 1
+  f1: 0.8
