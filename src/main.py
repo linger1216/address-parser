@@ -8,6 +8,7 @@ import torch.nn as nn
 from torchcrf import CRF
 from torchsummary import summary
 from collections import defaultdict
+from prettytable import PrettyTable
 
 # =================================================================
 # hyper parameters
@@ -25,7 +26,7 @@ eval_path = '../input/linan/eval.json'
 test_path = '../input/linan/eval.json'
 
 
-epochs = 5
+num_epochs = 5
 num_layers = 2
 batch_size = 1024
 sequence_length = 50
@@ -442,6 +443,9 @@ def eval(eval_data_loader, model, padding_value, vocab_map, label_map):
 
   assert len(eval_precisions.keys()) == len(eval_recalls.keys())
   score = {}
+  total_precision = 0
+  total_recall = 0
+  total_f1_score = 0
   for key in eval_precisions.keys():
     precision = sum(eval_precisions[key]) / len(eval_precisions[key])
     recall = sum(eval_recalls[key]) / len(eval_recalls[key])
@@ -449,7 +453,19 @@ def eval(eval_data_loader, model, padding_value, vocab_map, label_map):
       f1_score = 0
     else:
       f1_score = (2 * precision * recall) / (precision + recall)
+    total_precision += precision
+    total_recall += recall
+    total_f1_score += f1_score
     score[key] = (precision, recall, f1_score)
+
+  # 考虑到一些分类可能没有, 所以要计算的是非零的分类的平均值
+  precision_not_zero_count = sum(1 for precision, _, _ in score.values() if precision != 0)
+  total_precision = total_precision / precision_not_zero_count if precision_not_zero_count > 0 else 0
+  recall_not_zero_count = sum(1 for _, recall, _ in score.values() if recall != 0)
+  total_recall = total_recall / recall_not_zero_count if recall_not_zero_count > 0 else 0
+  f1_score_not_zero_count = sum(1 for _, _, f1_score in score.values() if f1_score != 0)
+  total_f1_score = total_f1_score / f1_score_not_zero_count if f1_score_not_zero_count > 0 else 0
+  score['total'] = (total_precision, total_recall, total_f1_score)
 
   return score, eval_corrects, eval_error_results, eval_error_encodes, eval_error_unknowns
 
@@ -499,7 +515,7 @@ def batch_eval_score(batch_predict, batch_y, batch_r):
 # =================================================================
 
 # 定义比较完善的训练函数
-def train(train_data_loader, eval_data_loader, model, optimizer, num_epoch,
+def train(train_data_loader, eval_data_loader, model, optimizer, num_epochs,
           save_step_interval, eval_step_interval, model_save_path, resume, eval_save_path='../eval'):
   start_epoch = 0
   start_step = 0
@@ -511,7 +527,7 @@ def train(train_data_loader, eval_data_loader, model, optimizer, num_epoch,
     checkpoint = torch.load(resume)
     model.load_state_dict(checkpoint['model'])
     optimizer.load_state_dict(checkpoint['optimizer'])
-    num_epoch = checkpoint.get('num_epoch', num_epoch)
+    num_epoch = checkpoint.get('num_epoch', num_epochs)
     start_epoch = checkpoint['epoch']
     start_step = checkpoint['step']
     print(f'resume training from epoch {start_epoch}/{num_epoch} step {start_step} by {resume}')
@@ -547,8 +563,15 @@ def train(train_data_loader, eval_data_loader, model, optimizer, num_epoch,
       if step % eval_step_interval == 0:
         model.eval()
         score, corrects, error_results, error_encodes, error_unknowns = eval(eval_data_loader, model, padding_value, vocab_map, label_map)
+        table = PrettyTable()
+        table.field_names = ["epoch", "num_epoch", "step", "epoch_step", "label", "precision", "recall", "f1_score"]
+        table.align = "l"
+        table.border = True
+        table.header = True
+
         for category, val in score.items():
-          print(f'Epoch {epoch + 1}/{num_epoch} Step {step}/{len(train_data_loader)} label: {category} precision: {val[0]} recall: {val[1]} f1_score: {val[2]}')
+          table.add_row([epoch + 1, num_epoch, step, len(train_data_loader), category, val[0], val[1], val[2]])
+          # print(f'Epoch {epoch + 1}/{num_epoch} Step {step}/{len(train_data_loader)} label: {category} precision: {val[0]} recall: {val[1]} f1_score: {val[2]}')
           scores[category].append({
             'epoch': epoch + 1,
             'num_epoch': num_epoch,
@@ -557,6 +580,7 @@ def train(train_data_loader, eval_data_loader, model, optimizer, num_epoch,
             'recall': val[1],
             'f1_score': val[2]
           })
+        print(str(table))
 
         # 这里的替换其实没关系, 因为只有最后一次的结果会被保存
         # 也就是, 模型的最后一次输出结果, 才代表最后结果
@@ -680,11 +704,11 @@ if __name__ == '__main__':
   summary(model, (sequence_length, input_size), batch_size=batch_size)
   optimizer = torch.optim.Adam(model.parameters())
 
-  train(train_data_loader, eval_data_loader, model, optimizer, epochs, save_step_interval=10, eval_step_interval=5,
-        model_save_path='../models', resume='', eval_save_path='../eval')
+  # train(train_data_loader, eval_data_loader, model, optimizer, num_epochs=num_epochs, save_step_interval=10, eval_step_interval=5,
+  #       model_save_path='../models', resume='', eval_save_path='../eval')
 
   # 读档
-  # train(train_data_loader, eval_data_loader, model, optimizer, epochs, save_step_interval=10, eval_step_interval=10,
-  #       model_save_path='../models', resume='../models/model_step_430.pt', eval_save_path='../eval')
+  train(train_data_loader, eval_data_loader, model, optimizer, num_epochs=num_epochs, save_step_interval=10, eval_step_interval=10,
+        model_save_path='../models', resume='../models/model_step_350.pt', eval_save_path='../eval')
 
   print("all done.")
