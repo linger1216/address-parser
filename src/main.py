@@ -1,4 +1,5 @@
 import os
+import yaml
 import json
 import pickle
 from datetime import datetime
@@ -9,40 +10,6 @@ from torchcrf import CRF
 from torchsummary import summary
 from collections import defaultdict
 from prettytable import PrettyTable
-
-# =================================================================
-# hyper parameters
-# =================================================================
-# label_path = '../input/labels.txt'
-label_path = '../input/linan/label.txt'
-vocab_path = '../input/vocab.pk'
-embedding_path = '../input/embedding.npy'
-
-# train_path = '../input/train.json'
-train_path = '../input/linan/train.json'
-# eval_path = '../input/eval.json'
-eval_path = '../input/linan/eval.json'
-# test_path = '../input/test.json'
-test_path = '../input/linan/eval.json'
-
-
-num_epochs = 5
-num_layers = 2
-batch_size = 1024
-sequence_length = 50
-input_size = 300
-hidden_size = 200
-dropout_rate = 0.4
-
-# 有个坑, 词向量找不到元素, 会用0填充...我们要处理下.
-padding_value = 0
-
-
-
-# =================================================================
-# 名词解释:
-# label 代表标注的类别
-# =================================================================
 
 
 # =================================================================
@@ -180,16 +147,11 @@ class BIGRU_CRF(nn.Module):
                         batch_first=True, bidirectional=True, dropout=dropout_rate)  # 双向GRU层
     self.gru_2 = nn.GRU(input_size=hidden_size * 2, hidden_size=hidden_size, num_layers=num_layers,
                         batch_first=True, bidirectional=True, dropout=dropout_rate)  # 双向GRU层
-    # self.dropout = nn.Dropout(dropout_rate)  # Dropout层
     self.fc = nn.Linear(hidden_size * 2, labels_size)
 
   def forward(self, x):
-    # h0 = torch.zeros(num_layers * 2, x.size(0), hidden_size)
-
     out, h1 = self.gru_1(x)  # 第一层GRU
     out, _ = self.gru_2(out, h1)  # 第二层GRU
-    # x = self.dropout(x)  # Dropout
-    # out = out[:, -1, :]
     out = self.fc(out)  # 全连接层
     return out
 
@@ -659,6 +621,34 @@ def eval_save_result(scores, errors, eval_save_path):
 
 
 if __name__ == '__main__':
+
+  with open('./config.yaml', 'r', encoding='utf-8') as f:
+    config = f.read()
+
+  d = yaml.load(config, Loader=yaml.FullLoader)
+
+  # =================================================================
+  # hyper parameters
+  # =================================================================
+  label_path = d['input']['label_path']
+  vocab_path = d['input']['vocab_path']
+  embedding_path = d['input']['embedding_path']
+
+  train_path = d['input']['train_path']
+  eval_path = d['input']['eval_path']
+  test_path = d['input']['test_path']
+
+  num_epochs = d['params']['num_epochs']
+  num_layers = d['params']['num_layers']
+  batch_size = d['params']['batch_size']
+  sequence_length = d['params']['sequence_length']
+  input_size = d['params']['input_size']
+  hidden_size = d['params']['hidden_size']
+  dropout_rate = d['params']['dropout_rate']
+
+  # 有个坑, 词向量找不到元素, 会用0填充...我们要处理下.
+  padding_value = 0
+
   logo = """
    __    ____  ____  ____  ____  ___  ___    ____  ____    __    ____  _  _ 
   /__\  (  _ \(  _ \(  _ \( ___)/ __)/ __)  (_  _)(  _ \  /__\  (_  _)( \( )
