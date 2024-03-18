@@ -532,7 +532,7 @@ def train(train_data_loader, eval_data_loader, model, optimizer, num_epochs,
         table.header = True
 
         for category, val in score.items():
-          table.add_row([epoch + 1, num_epoch, step, len(train_data_loader), category, val[0], val[1], val[2]])
+          table.add_row([epoch + 1, num_epoch, step, num_epoch * len(train_data_loader), category, val[0], val[1], val[2]])
           # print(f'Epoch {epoch + 1}/{num_epoch} Step {step}/{len(train_data_loader)} label: {category} precision: {val[0]} recall: {val[1]} f1_score: {val[2]}')
           scores[category].append({
             'epoch': epoch + 1,
@@ -646,7 +646,7 @@ if __name__ == '__main__':
   hidden_size = d['params']['hidden_size']
   dropout_rate = d['params']['dropout_rate']
 
-  # 有个坑, 词向量找不到元素, 会用0填充...我们要处理下.
+  # fill in value use unless zero
   padding_value = 0
 
   logo = """
