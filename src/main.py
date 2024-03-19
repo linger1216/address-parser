@@ -42,7 +42,7 @@ def read_json(path):
     return json.load(f)
 
 
-def load_data(json_datas, sequence_length):
+def load_data(json_datas):
   datas = []
   labels = []
   for d in json_datas:
@@ -321,12 +321,14 @@ def trans_group(group, raw):
   end = group[-1][1]
   return ''.join(raw[start:end + 1])
 
+
 def remove_trailing_padding(a, padding_value):
   # 从末尾开始找到第一个不是padding_value的元素的位置
   index = next((i for i, value in enumerate(reversed(a)) if value != padding_value), len(a))
 
   # 返回截取后的数组
   return a[:-index] if index > 0 else a
+
 
 def eval_decode(predict, y, r, vocab_map, label_map):
   """
@@ -345,7 +347,6 @@ def eval_decode(predict, y, r, vocab_map, label_map):
   batch_predict_labels = []
   batch_y_labels = []
   batch_r_tokens = []
-
 
   for i in range(size):
     predict_items = predict[i]
@@ -489,12 +490,12 @@ def train(train_data_loader, eval_data_loader, model, optimizer, num_epochs,
     checkpoint = torch.load(resume)
     model.load_state_dict(checkpoint['model'])
     optimizer.load_state_dict(checkpoint['optimizer'])
-    num_epoch = checkpoint.get('num_epoch', num_epochs)
+    num_epochs = checkpoint.get('num_epoch', num_epochs)
     start_epoch = checkpoint['epoch']
     start_step = checkpoint['step']
-    print(f'resume training from epoch {start_epoch}/{num_epoch} step {start_step} by {resume}')
+    print(f'resume training from epoch {start_epoch} / {num_epochs} step {start_step} by {resume}')
 
-  for epoch in range(start_epoch, num_epoch):
+  for epoch in range(start_epoch, num_epochs):
     num_batches = len(train_data_loader)
     for batch_index, (X, y, _) in enumerate(train_data_loader):
       step = num_batches * epoch + batch_index + 1
@@ -508,7 +509,7 @@ def train(train_data_loader, eval_data_loader, model, optimizer, num_epochs,
       loss.backward()
       optimizer.step()
 
-      print(f'Epoch {epoch + 1}/{num_epoch} Step {step}/{len(train_data_loader)} Loss: {loss.item()}')
+      print(f'Epoch {epoch + 1} / {num_epochs} Step {step} / {len(train_data_loader)} Loss: {loss.item()}')
 
       # save model by epoch end
       if step % save_step_interval == 0:
@@ -524,7 +525,8 @@ def train(train_data_loader, eval_data_loader, model, optimizer, num_epochs,
 
       if step % eval_step_interval == 0:
         model.eval()
-        score, corrects, error_results, error_encodes, error_unknowns = eval(eval_data_loader, model, padding_value, vocab_map, label_map)
+        score, corrects, error_results, error_encodes, error_unknowns = eval(eval_data_loader, model,
+                                                                             padding_value, vocab_map, label_map)
         table = PrettyTable()
         table.field_names = ["epoch", "num_epoch", "step", "epoch_step", "label", "precision", "recall", "f1_score"]
         table.align = "l"
@@ -532,8 +534,10 @@ def train(train_data_loader, eval_data_loader, model, optimizer, num_epochs,
         table.header = True
 
         for category, val in score.items():
-          table.add_row([epoch + 1, num_epoch, step, num_epoch * len(train_data_loader), category, val[0], val[1], val[2]])
-          # print(f'Epoch {epoch + 1}/{num_epoch} Step {step}/{len(train_data_loader)} label: {category} precision: {val[0]} recall: {val[1]} f1_score: {val[2]}')
+          table.add_row([epoch + 1, num_epoch, step, num_epoch * len(train_data_loader), category,
+                         val[0], val[1], val[2]])
+          # print(f'Epoch {epoch + 1}/{num_epoch} Step {step}/{len(train_data_loader)}
+          # label: {category} precision: {val[0]} recall: {val[1]} f1_score: {val[2]}')
           scores[category].append({
             'epoch': epoch + 1,
             'num_epoch': num_epoch,
@@ -621,7 +625,6 @@ def eval_save_result(scores, errors, eval_save_path):
 
 
 if __name__ == '__main__':
-
   with open('./config.yaml', 'r', encoding='utf-8') as f:
     config = f.read()
 
@@ -664,21 +667,21 @@ if __name__ == '__main__':
   """
   data definition
   """
-  train_data, train_label = load_data(read_json(train_path), sequence_length)
+  train_data, train_label = load_data(read_json(train_path))
   train_data_tensor = tensor_data(vocab_map, train_data, padding_value, sequence_length)
   train_data_embedding = embedding_data(train_data_tensor, embeddings)
   train_label = tensor_label(train_label, label_map, padding_value, sequence_length)
   train_dataset = torch.utils.data.TensorDataset(train_data_embedding, train_label, train_data_tensor)
   train_data_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 
-  eval_data, eval_label = load_data(read_json(eval_path), sequence_length)
+  eval_data, eval_label = load_data(read_json(eval_path))
   eval_data_tensor = tensor_data(vocab_map, eval_data, padding_value, sequence_length)
   eval_data_embedding = embedding_data(eval_data_tensor, embeddings)
   eval_label = tensor_label(eval_label, label_map, padding_value, sequence_length)
   eval_dataset = torch.utils.data.TensorDataset(eval_data_embedding, eval_label, eval_data_tensor)
   eval_data_loader = torch.utils.data.DataLoader(eval_dataset, batch_size=batch_size, shuffle=False)
 
-  test_data, test_label = load_data(read_json(test_path), sequence_length)
+  test_data, test_label = load_data(read_json(test_path))
   test_data_tensor = tensor_data(vocab_map, test_data, padding_value, sequence_length)
   test_data_embedding = embedding_data(test_data_tensor, embeddings)
   test_label = tensor_label(test_label, label_map, padding_value, sequence_length)
@@ -694,11 +697,13 @@ if __name__ == '__main__':
   summary(model, (sequence_length, input_size), batch_size=batch_size)
   optimizer = torch.optim.Adam(model.parameters())
 
-  # train(train_data_loader, eval_data_loader, model, optimizer, num_epochs=num_epochs, save_step_interval=10, eval_step_interval=5,
-  #       model_save_path='../models', resume='', eval_save_path='../eval')
+  train(train_data_loader, eval_data_loader, model, optimizer, num_epochs=num_epochs,
+        save_step_interval=10, eval_step_interval=5,
+        model_save_path='../models', resume='', eval_save_path='../eval')
 
   # 读档
-  train(train_data_loader, eval_data_loader, model, optimizer, num_epochs=num_epochs, save_step_interval=10, eval_step_interval=10,
-        model_save_path='../models', resume='../models/model_step_350.pt', eval_save_path='../eval')
+  # train(train_data_loader, eval_data_loader, model, optimizer, num_epochs=num_epochs,
+  #       save_step_interval=10, eval_step_interval=10,
+  #       model_save_path='../models', resume='../models/model_step_350.pt', eval_save_path='../eval')
 
   print("all done.")
