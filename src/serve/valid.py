@@ -105,13 +105,7 @@ if __name__ == '__main__':
   label_path = d['input']['label_path']
   vocab_path = d['input']['vocab_path']
   embedding_path = d['input']['embedding_path']
-  num_epochs = d['params']['num_epochs']
-  num_layers = d['params']['num_layers']
-  batch_size = d['params']['batch_size']
   sequence_length = d['params']['sequence_length']
-  input_size = d['params']['input_size']
-  hidden_size = d['params']['hidden_size']
-  dropout_rate = d['params']['dropout_rate']
 
   _, label_map, _ = load_labels(label_path)
   vocab_map = load_vocabs(vocab_path)

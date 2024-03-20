@@ -1,9 +1,6 @@
 import os
 import yaml
-import json
-import pickle
 from datetime import datetime
-import numpy as np
 import torch
 import torch.nn as nn
 from torchcrf import CRF
@@ -12,34 +9,12 @@ from collections import defaultdict
 from prettytable import PrettyTable
 import bentoml
 
+from src.utils import (load_labels, load_vocabs, load_json, load_yaml, load_embeddings,
+                       tensor_data, embedding_data, remove_trailing_padding, group_tokens, trans_group)
+
 # =================================================================
 # load resources
 # =================================================================
-
-def load_labels(path):
-  with open(path, "r", encoding="utf-8") as file:
-    lines = file.readlines()
-  labels = [line.strip() for line in lines]
-  label_id_map = {label: i for i, label in enumerate(labels)}
-  unique_category = [line.strip().split('-')[-1] for line in lines]
-  return labels, label_id_map, list(set(unique_category))
-
-
-def load_vocabs(path):
-  with open(path, 'rb') as f:
-    vocab = pickle.load(f)
-  return vocab
-
-
-def load_embeddings(path):
-  embeddings = torch.tensor(np.load(path), dtype=torch.float32)
-  embedding = nn.Embedding.from_pretrained(embeddings)
-  return embedding
-
-
-def read_json(path):
-  with open(path, 'r', encoding='utf-8') as f:
-    return json.load(f)
 
 
 def load_data(json_datas):
@@ -87,12 +62,6 @@ def tensor_label(targets, label_map, padding_value, sequence_length):
   return torch.tensor(target_ids, dtype=torch.int64)
 
 
-# 将target id转成one hot编码
-# def one_hot_target_id(target_ids, label_num):
-#   target_ids_tensor = torch.tensor(target_ids, dtype=torch.int64)
-#   one_hot = F.one_hot(target_ids_tensor, num_classes=label_num)
-#   return one_hot
-
 # 将中文文本(训练/测试)转成词向量
 # 在使用预训练的词向量进行嵌入后，张量的维度将发生变化。假设输入数据的形状为 (2, 50)，其中 2 是批量大小（batch size），50 是序列长度（sequence length）。
 # 预训练的词向量维度为 (18109, 300)，其中 18109 是词汇表中的词语数量，300 是每个词语的嵌入维度。
@@ -103,24 +72,10 @@ text -> tokens -> vocab -> padding -> tensor
 """
 
 
-def tensor_data(vocabulary, datas, padding_value, sequence_length):
-  tokens = []
-  for text in datas:
-    ids = [vocabulary.get(token, 0) for token in text]
-    ids += [padding_value] * (sequence_length - len(ids))
-    tokens.append(ids)
-  return torch.tensor(tokens, dtype=torch.int64)
-
-
 """
 input: text -> tokens -> vocab -> padding -> tensor
 do: tensor -> embeddings
 """
-
-
-def embedding_data(tensors, embeddings):
-  return embeddings(tensors)
-
 
 # =================================================================
 # BI GRU + CRF model
@@ -159,45 +114,38 @@ class BIGRU_CRF(nn.Module):
 # =================================================================
 # EVAL Functions
 # =================================================================
-
-def group_tokens(tokens, category):
-  stack = []
-  group = []
-  for i, token in enumerate(tokens):
-    if token not in [f'B-{category}', f'I-{category}', f'E-{category}', f'S-{category}']:
-      continue
-
-    if token == f'S-{category}':
-      group.append([(token, i)])
-      continue
-
-    if len(stack) == 0:
-      stack.append((token, i))
-      continue
-
-    last_token, _ = stack[-1]
-
-    if (
-      last_token == f'B-{category}' and token == f'I-{category}' or
-      last_token == f'B-{category}' and token == f'E-{category}' or
-      last_token == f'I-{category}' and token == f'I-{category}' or
-      last_token == f'I-{category}' and token == f'E-{category}'):
-      stack.append((token, i))
-    else:
-      group.append(stack)
-      stack = [(token, i)]
-
-  if len(stack) > 0:
-    group.append(stack)
-
-  return sorted(group, key=lambda x: x[0][1])
-
-
-def batch_group_tokens(batch_tokens, category):
-  batch_group = []
-  for tokens in batch_tokens:
-    batch_group.append(group_tokens(tokens, category))
-  return batch_group
+#
+# def group_tokens(tokens, category):
+#   stack = []
+#   group = []
+#   for i, token in enumerate(tokens):
+#     if token not in [f'B-{category}', f'I-{category}', f'E-{category}', f'S-{category}']:
+#       continue
+#
+#     if token == f'S-{category}':
+#       group.append([(token, i)])
+#       continue
+#
+#     if len(stack) == 0:
+#       stack.append((token, i))
+#       continue
+#
+#     last_token, _ = stack[-1]
+#
+#     if (
+#       last_token == f'B-{category}' and token == f'I-{category}' or
+#       last_token == f'B-{category}' and token == f'E-{category}' or
+#       last_token == f'I-{category}' and token == f'I-{category}' or
+#       last_token == f'I-{category}' and token == f'E-{category}'):
+#       stack.append((token, i))
+#     else:
+#       group.append(stack)
+#       stack = [(token, i)]
+#
+#   if len(stack) > 0:
+#     group.append(stack)
+#
+#   return sorted(group, key=lambda x: x[0][1])
 
 
 """
@@ -310,15 +258,6 @@ def batch_statistics_group(batch_predict_group, batch_y_group):
     recall_mean = sum(recalls) / len(recalls)
 
   return corrects, error_results, error_encodes, error_unknowns, precisions, recalls, precision_mean, recall_mean
-
-
-def trans_group(group, raw):
-  # 如果group代表空, 预测或真实的那个结果,应该就是空.
-  if len(group) == 0:
-    return ""
-  start = group[0][1]
-  end = group[-1][1]
-  return ''.join(raw[start:end + 1])
 
 
 def remove_trailing_padding(a, padding_value):
@@ -487,6 +426,7 @@ def train(train_data_loader, eval_data_loader, model, optimizer, num_epochs,
   scores = defaultdict(list)
   errors = {}
   if resume:
+    resume = os.path.join(model_save_path, resume)
     checkpoint = torch.load(resume)
     model.load_state_dict(checkpoint['model'])
     optimizer.load_state_dict(checkpoint['optimizer'])
@@ -586,7 +526,7 @@ def eval_save_result(scores, errors, eval_save_path):
       f.write(f"correct\n")
       for groups, raw in datas:
         for group in groups:
-          text = trans_group(group, raw)
+          text, _  = trans_group(group, raw)
           f.write(f"{text}\n")
 
   # write error result
@@ -597,8 +537,8 @@ def eval_save_result(scores, errors, eval_save_path):
       f.write(f"predict, y\n")
       for groups, raw in datas:
         for group in groups:
-          predict_text = trans_group(group['predict'], raw)
-          y_text = trans_group(group['y'], raw)
+          predict_text, _ = trans_group(group['predict'], raw)
+          y_text, _ = trans_group(group['y'], raw)
           f.write(f"{predict_text},{y_text}\n")
 
   # write error encode
@@ -609,7 +549,7 @@ def eval_save_result(scores, errors, eval_save_path):
       f.write(f"error_encode\n")
       for groups, raw in datas:
         for group in groups:
-          text = trans_group(group, raw)
+          text, _= trans_group(group, raw)
           f.write(f"{text}\n")
 
   # write error unknown
@@ -620,15 +560,13 @@ def eval_save_result(scores, errors, eval_save_path):
       f.write(f"error_unknown\n")
       for groups, raw in datas:
         for group in groups:
-          text = trans_group(group, raw)
+          text, _ = trans_group(group, raw)
           f.write(f"{text}\n")
 
 
 if __name__ == '__main__':
-  with open('config.yaml', 'r', encoding='utf-8') as f:
-    config = f.read()
 
-  d = yaml.load(config, Loader=yaml.FullLoader)
+  d = load_yaml('config.yaml')
 
   # =================================================================
   # hyper parameters
@@ -667,21 +605,21 @@ if __name__ == '__main__':
   """
   data definition
   """
-  train_data, train_label = load_data(read_json(train_path))
+  train_data, train_label = load_data(load_json(train_path))
   train_data_tensor = tensor_data(vocab_map, train_data, padding_value, sequence_length)
   train_data_embedding = embedding_data(train_data_tensor, embeddings)
   train_label = tensor_label(train_label, label_map, padding_value, sequence_length)
   train_dataset = torch.utils.data.TensorDataset(train_data_embedding, train_label, train_data_tensor)
   train_data_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 
-  eval_data, eval_label = load_data(read_json(eval_path))
+  eval_data, eval_label = load_data(load_json(eval_path))
   eval_data_tensor = tensor_data(vocab_map, eval_data, padding_value, sequence_length)
   eval_data_embedding = embedding_data(eval_data_tensor, embeddings)
   eval_label = tensor_label(eval_label, label_map, padding_value, sequence_length)
   eval_dataset = torch.utils.data.TensorDataset(eval_data_embedding, eval_label, eval_data_tensor)
   eval_data_loader = torch.utils.data.DataLoader(eval_dataset, batch_size=batch_size, shuffle=False)
 
-  test_data, test_label = load_data(read_json(test_path))
+  test_data, test_label = load_data(load_json(test_path))
   test_data_tensor = tensor_data(vocab_map, test_data, padding_value, sequence_length)
   test_data_embedding = embedding_data(test_data_tensor, embeddings)
   test_label = tensor_label(test_label, label_map, padding_value, sequence_length)
@@ -704,8 +642,7 @@ if __name__ == '__main__':
   # 读档
   train(train_data_loader, eval_data_loader, model, optimizer, num_epochs=num_epochs,
         save_step_interval=10, eval_step_interval=10,
-        model_save_path='../../models', resume='../models/model_step_380.pt', eval_save_path='../../eval')
-
+        model_save_path='../../models', resume='model_step_380.pt', eval_save_path='../../eval')
 
 
   saved_model = bentoml.pytorch.save_model("parse", model)

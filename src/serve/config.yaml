@@ -2,15 +2,6 @@ input:
   label_path: '../../input/linan/label.txt'
   vocab_path: '../../input/vocab.pk'
   embedding_path: '../../input/embedding.npy'
-  train_path: '../../input/linan/train.json'
-  eval_path: '../../input/linan/eval.json'
-  test_path: '../../input/linan/eval.json'
 
 params:
-  num_epochs: 5
-  num_layers: 2
-  batch_size: 1024
   sequence_length: 50
-  input_size: 300
-  hidden_size: 200
-  dropout_rate: 0.4
