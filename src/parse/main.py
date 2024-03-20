@@ -10,7 +10,7 @@ from torchcrf import CRF
 from torchsummary import summary
 from collections import defaultdict
 from prettytable import PrettyTable
-
+import bentoml
 
 # =================================================================
 # load resources
@@ -150,9 +150,9 @@ class BIGRU_CRF(nn.Module):
     self.fc = nn.Linear(hidden_size * 2, labels_size)
 
   def forward(self, x):
-    out, h1 = self.gru_1(x)  # 第一层GRU
-    out, _ = self.gru_2(out, h1)  # 第二层GRU
-    out = self.fc(out)  # 全连接层
+    out, h1 = self.gru_1(x)
+    out, _ = self.gru_2(out, h1)
+    out = self.fc(out)
     return out
 
 
@@ -205,7 +205,6 @@ def batch_group_tokens(batch_tokens, category):
 predict_group: 预测的group
 y_group: 真实的group
 note: 所有的group只保留了特定的category
-
 
 correct, error_result, error_encode, error_unknown, precision, recall
 """
@@ -386,6 +385,7 @@ def eval(eval_data_loader, model, padding_value, vocab_map, label_map):
 
   for X, y, r in eval_data_loader:
     predict = model(X)
+    # 这一句是有点奇怪的, 看能否使用输入的维度来指定mask
     mask = (y != padding_value)
     predict = crf.decode(predict, mask)
     predict, y, r = eval_decode(predict, y, r, vocab_map, label_map)
@@ -509,7 +509,7 @@ def train(train_data_loader, eval_data_loader, model, optimizer, num_epochs,
       loss.backward()
       optimizer.step()
 
-      print(f'Epoch {epoch + 1} / {num_epochs} Step {step} / {len(train_data_loader)} Loss: {loss.item()}')
+      print(f'Epoch {epoch + 1} / {num_epochs} Step {step} / {num_epochs*len(train_data_loader)} Loss: {loss.item()}')
 
       # save model by epoch end
       if step % save_step_interval == 0:
@@ -625,7 +625,7 @@ def eval_save_result(scores, errors, eval_save_path):
 
 
 if __name__ == '__main__':
-  with open('./config.yaml', 'r', encoding='utf-8') as f:
+  with open('config.yaml', 'r', encoding='utf-8') as f:
     config = f.read()
 
   d = yaml.load(config, Loader=yaml.FullLoader)
@@ -697,13 +697,18 @@ if __name__ == '__main__':
   summary(model, (sequence_length, input_size), batch_size=batch_size)
   optimizer = torch.optim.Adam(model.parameters())
 
-  train(train_data_loader, eval_data_loader, model, optimizer, num_epochs=num_epochs,
-        save_step_interval=10, eval_step_interval=5,
-        model_save_path='../models', resume='', eval_save_path='../eval')
+  # train(train_data_loader, eval_data_loader, model, optimizer, num_epochs=num_epochs,
+  #       save_step_interval=10, eval_step_interval=5,
+  #       model_save_path='../models', resume='', eval_save_path='../eval')
 
   # 读档
-  # train(train_data_loader, eval_data_loader, model, optimizer, num_epochs=num_epochs,
-  #       save_step_interval=10, eval_step_interval=10,
-  #       model_save_path='../models', resume='../models/model_step_350.pt', eval_save_path='../eval')
+  train(train_data_loader, eval_data_loader, model, optimizer, num_epochs=num_epochs,
+        save_step_interval=10, eval_step_interval=10,
+        model_save_path='../../models', resume='../models/model_step_380.pt', eval_save_path='../../eval')
+
+
+
+  saved_model = bentoml.pytorch.save_model("parse", model)
+  print(f"Model saved: {saved_model}")
 
   print("all done.")
