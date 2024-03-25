@@ -1,0 +1,19 @@
+# bentofile.yaml
+
+# 定位服务的约定：<YOUR_SERVICE_PY>:<YOUR_SERVICE_ANNOTATION>
+service: "src/serve/service.py:svc"
+description: "address parse model"
+labels:
+    owner: lid.guan
+    project: address
+include:
+ - "*.py"
+ - "input/embedding.npy"
+ - "input/vocab.pk"
+ - "input/train.json"
+ - "input/eval.json"
+ - "input/label.txt"
+python:
+  packages:
+   - torch==2.2.1
+   - pytorch-crf==0.7.2

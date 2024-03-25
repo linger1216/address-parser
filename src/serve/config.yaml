@@ -1,7 +1,0 @@
-input:
-  label_path: '../../input/linan/label.txt'
-  vocab_path: '../../input/vocab.pk'
-  embedding_path: '../../input/embedding.npy'
-
-params:
-  sequence_length: 50
