@@ -1,10 +1,10 @@
 input:
-  label_path: '../../input/linan/label.txt'
-  vocab_path: '../../input/vocab.pk'
-  embedding_path: '../../input/embedding.npy'
-  train_path: '../../input/linan/train.json'
-  eval_path: '../../input/linan/eval.json'
-  test_path: '../../input/linan/eval.json'
+  label_path: 'input/label.txt'
+  vocab_path: 'input/vocab.pk'
+  embedding_path: 'input/embedding.npy'
+  train_path: 'input/train.json'
+  eval_path: 'input/eval.json'
+  test_path: 'input/eval.json'
 
 params:
   num_epochs: 5

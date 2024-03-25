@@ -1,100 +1,9 @@
-import numpy as np
 import bentoml
 import yaml
-import torch
-import pickle
-import torch.nn as nn
 from torchcrf import CRF
 
-
-def load_labels(path):
-  with open(path, "r", encoding="utf-8") as file:
-    lines = file.readlines()
-  labels = [line.strip() for line in lines]
-  label_id_map = {label: i for i, label in enumerate(labels)}
-  unique_category = [line.strip().split('-')[-1] for line in lines]
-  return labels, label_id_map, list(set(unique_category))
-
-
-def load_vocabs(path):
-  with open(path, 'rb') as f:
-    vocab = pickle.load(f)
-  return vocab
-
-
-def load_embeddings(path):
-  embeddings = torch.tensor(np.load(path), dtype=torch.float32)
-  embedding = nn.Embedding.from_pretrained(embeddings)
-  return embedding
-
-
-def tensor_data(vocabulary, datas, padding_value, sequence_length):
-  tokens = []
-  for text in datas:
-    ids = [vocabulary.get(token, 0) for token in text]
-    ids += [padding_value] * (sequence_length - len(ids))
-    tokens.append(ids)
-  return torch.tensor(tokens, dtype=torch.int64)
-
-def embedding_data(tensors, embeddings):
-  return embeddings(tensors)
-
-
-def remove_trailing_padding(a, padding_value):
-  # 从末尾开始找到第一个不是padding_value的元素的位置
-  index = next((i for i, value in enumerate(reversed(a)) if value != padding_value), len(a))
-  # 返回截取后的数组
-  return a[:-index] if index > 0 else a
-
-def group_tokens(tokens):
-  stack = []
-  group = []
-  for i, token in enumerate(tokens):
-    # start with S
-    if token.startswith('S-'):
-      group.append([(token, i)])
-      continue
-
-    if len(stack) == 0:
-      stack.append((token, i))
-      continue
-
-    last_token, _ = stack[-1]
-
-    if (
-      last_token.startswith('B-') and token.startswith('I-') or
-      last_token.startswith('B-') and token.startswith('E-') or
-      last_token.startswith('I-') and token.startswith('I-') or
-      last_token.startswith('I-') and token.startswith('E-')):
-      stack.append((token, i))
-    else:
-      group.append(stack)
-      stack = [(token, i)]
-
-  if len(stack) > 0:
-    group.append(stack)
-
-  return sorted(group, key=lambda x: x[0][1])
-
-
-def batch_group_tokens(batch_tokens):
-  batch_group = []
-  for tokens in batch_tokens:
-    batch_group.append(group_tokens(tokens))
-  return batch_group
-
-
-
-def trans_group(group, raw):
-  # 如果group代表空, 预测或真实的那个结果,应该就是空.
-  if len(group) == 0:
-    return ""
-  label = group[0][0].strip().split('-')[-1]
-  start = group[0][1]
-  end = group[-1][1]
-  return ''.join(raw[start:end + 1]), label
-
-
+from utils import load_labels, load_vocabs, load_embeddings, tensor_data, embedding_data, remove_trailing_padding, \
+  batch_group_tokens, trans_group
 
 if __name__ == '__main__':
   with open('config.yaml', 'r', encoding='utf-8') as f:
@@ -153,11 +62,3 @@ if __name__ == '__main__':
 
   print(f'batch_predict={batch_predict}')
   print("all done")
-
-# svc = bentoml.Service('parse', runners=[parse_runner])
-# @svc.api(input=NumpyNdarray(), output=NumpyNdarray())
-# def classify(input_series: np.ndarray) -> np.ndarray:
-#   # 定义预处理逻辑
-#   result = parse_runner.run(input_series)
-#   # 定义后处理逻辑
-#   return result

@@ -15,6 +15,15 @@ LICENSE ：这是⼀个简单的⽂本⽂件，包含项⽬的许可证，如 MI
 
 
 
+
+# service
+
+bentoml serve service.py:svc --reload
+
+# 打包
+bentoml build --debug -f bentofile.yaml
+
+
 ## todo
 1. 增加配置
 2. test eval train的作用丰富, 最好模型的选择

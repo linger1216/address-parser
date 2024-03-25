@@ -9,7 +9,7 @@ from collections import defaultdict
 from prettytable import PrettyTable
 import bentoml
 
-from src.utils import (load_labels, load_vocabs, load_json, load_yaml, load_embeddings,
+from utils import (load_labels, load_vocabs, load_json, load_yaml, load_embeddings,
                        tensor_data, embedding_data, remove_trailing_padding, group_tokens, trans_group)
 
 # =================================================================
@@ -114,39 +114,6 @@ class BIGRU_CRF(nn.Module):
 # =================================================================
 # EVAL Functions
 # =================================================================
-#
-# def group_tokens(tokens, category):
-#   stack = []
-#   group = []
-#   for i, token in enumerate(tokens):
-#     if token not in [f'B-{category}', f'I-{category}', f'E-{category}', f'S-{category}']:
-#       continue
-#
-#     if token == f'S-{category}':
-#       group.append([(token, i)])
-#       continue
-#
-#     if len(stack) == 0:
-#       stack.append((token, i))
-#       continue
-#
-#     last_token, _ = stack[-1]
-#
-#     if (
-#       last_token == f'B-{category}' and token == f'I-{category}' or
-#       last_token == f'B-{category}' and token == f'E-{category}' or
-#       last_token == f'I-{category}' and token == f'I-{category}' or
-#       last_token == f'I-{category}' and token == f'E-{category}'):
-#       stack.append((token, i))
-#     else:
-#       group.append(stack)
-#       stack = [(token, i)]
-#
-#   if len(stack) > 0:
-#     group.append(stack)
-#
-#   return sorted(group, key=lambda x: x[0][1])
-
 
 """
 统计的结果
@@ -642,7 +609,7 @@ if __name__ == '__main__':
   # 读档
   train(train_data_loader, eval_data_loader, model, optimizer, num_epochs=num_epochs,
         save_step_interval=10, eval_step_interval=10,
-        model_save_path='../../models', resume='model_step_380.pt', eval_save_path='../../eval')
+        model_save_path='../models', resume='model_step_380.pt', eval_save_path='../eval')
 
 
   saved_model = bentoml.pytorch.save_model("parse", model)
