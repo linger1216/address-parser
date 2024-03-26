@@ -31,8 +31,6 @@ crf = CRF(num_tags=len(label_map), batch_first=True)
 parse_runner = bentoml.pytorch.get("parse:latest").to_runner()
 svc = bentoml.Service('parse', runners=[parse_runner])
 
-print('init done.')
-
 @svc.api(input=JSON(), output=JSON())
 def parse(datas):
   tensors = tensor_data(vocabulary=vocab_map, datas=datas, padding_value=0, sequence_length=sequence_length)
