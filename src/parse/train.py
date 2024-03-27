@@ -10,7 +10,8 @@ from prettytable import PrettyTable
 import bentoml
 
 from utils import (load_labels, load_vocabs, load_json, load_yaml, load_embeddings,
-                       tensor_data, embedding_data, remove_trailing_padding, group_tokens, trans_group)
+                   tensor_data, embedding_data, remove_trailing_padding, group_tokens, trans_group)
+
 
 # =================================================================
 # load resources
@@ -71,11 +72,11 @@ def tensor_label(targets, label_map, padding_value, sequence_length):
 text -> tokens -> vocab -> padding -> tensor
 """
 
-
 """
 input: text -> tokens -> vocab -> padding -> tensor
 do: tensor -> embeddings
 """
+
 
 # =================================================================
 # BI GRU + CRF model
@@ -416,7 +417,7 @@ def train(train_data_loader, eval_data_loader, model, optimizer, num_epochs,
       loss.backward()
       optimizer.step()
 
-      print(f'Epoch {epoch + 1} / {num_epochs} Step {step} / {num_epochs*len(train_data_loader)} Loss: {loss.item()}')
+      print(f'Epoch {epoch + 1} / {num_epochs} Step {step} / {num_epochs * len(train_data_loader)} Loss: {loss.item()}')
 
       # save model by epoch end
       if step % save_step_interval == 0:
@@ -493,7 +494,7 @@ def eval_save_result(scores, errors, eval_save_path):
       f.write(f"correct\n")
       for groups, raw in datas:
         for group in groups:
-          text, _  = trans_group(group, raw)
+          text, _ = trans_group(group, raw)
           f.write(f"{text}\n")
 
   # write error result
@@ -516,7 +517,7 @@ def eval_save_result(scores, errors, eval_save_path):
       f.write(f"error_encode\n")
       for groups, raw in datas:
         for group in groups:
-          text, _= trans_group(group, raw)
+          text, _ = trans_group(group, raw)
           f.write(f"{text}\n")
 
   # write error unknown
@@ -532,7 +533,6 @@ def eval_save_result(scores, errors, eval_save_path):
 
 
 if __name__ == '__main__':
-
   d = load_yaml('config.yaml')
 
   # =================================================================
@@ -610,7 +610,6 @@ if __name__ == '__main__':
   train(train_data_loader, eval_data_loader, model, optimizer, num_epochs=num_epochs,
         save_step_interval=10, eval_step_interval=10,
         model_save_path='../models', resume='model_step_380.pt', eval_save_path='../eval')
-
 
   saved_model = bentoml.pytorch.save_model("parse", model)
   print(f"Model saved: {saved_model}")
